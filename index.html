@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d10">
+  <title>Regimen</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #14181d;
+      --panel-2: #1b2026;
+      --line: #262c33;
+      --text: #e7ecf1;
+      --muted: #8a93a0;
+      --accent: #ff7a45;
+      --accent-2: #ffa477;
+      --done: #4ade80;
+      --tap: rgba(255,122,69,0.18);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top: env(safe-area-inset-top, 0px);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: var(--tap); }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { padding-bottom: calc(80px + var(--safe-bottom)); }
+
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: linear-gradient(180deg, var(--bg) 80%, transparent);
+      padding: calc(12px + var(--safe-top)) 16px 8px;
+    }
+    .title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .title h1 { font-size: 22px; margin: 0; letter-spacing: 0.5px; }
+    .title .sub { font-size: 13px; color: var(--muted); }
+
+    .week-rail { display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 8px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .week-rail::-webkit-scrollbar { display: none; }
+    .week-pill {
+      flex: 0 0 auto; min-width: 56px; padding: 8px 10px;
+      border-radius: 12px; background: var(--panel); color: var(--muted);
+      border: 1px solid var(--line); font-weight: 600; font-size: 13px;
+      text-align: center; cursor: pointer; scroll-snap-align: center;
+      transition: transform 0.06s ease;
+    }
+    .week-pill .num { font-size: 16px; color: var(--text); display: block; }
+    .week-pill.active { background: var(--accent); color: #1a0f08; border-color: var(--accent); }
+    .week-pill.active .num { color: #1a0f08; }
+    .week-pill.has-data { border-color: var(--done); }
+    .week-pill:active { transform: scale(0.96); }
+
+    main { padding: 4px 16px 16px; }
+
+    .day {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 16px; margin-bottom: 14px; overflow: hidden;
+    }
+    .day h2 {
+      margin: 0; padding: 14px 16px;
+      font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--muted); display: flex; justify-content: space-between; align-items: center;
+    }
+    .day h2 .count { font-size: 12px; color: var(--accent-2); }
+
+    .ex {
+      display: grid; grid-template-columns: 1fr auto; gap: 10px;
+      align-items: center; padding: 12px 16px;
+      border-top: 1px solid var(--line);
+    }
+    .ex .name { font-weight: 600; font-size: 16px; }
+    .ex .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .ex .meta .last { color: var(--accent-2); }
+    .ex input[type="number"] {
+      width: 92px; padding: 12px 10px;
+      background: var(--panel-2); border: 1px solid var(--line);
+      border-radius: 10px; color: var(--text); font-size: 17px;
+      text-align: right; font-variant-numeric: tabular-nums;
+      -moz-appearance: textfield;
+    }
+    .ex input[type="number"]::-webkit-outer-spin-button,
+    .ex input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .ex input[type="number"]:focus { outline: none; border-color: var(--accent); }
+    .ex.done input[type="number"] { border-color: var(--done); }
+
+    .tabbar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--panel); border-top: 1px solid var(--line);
+      display: flex; padding: 8px 8px calc(8px + var(--safe-bottom));
+      z-index: 20;
+    }
+    .tabbar button {
+      flex: 1; background: transparent; border: 0; color: var(--muted);
+      padding: 10px 6px; border-radius: 10px; font-size: 12px; font-weight: 600;
+      cursor: pointer;
+    }
+    .tabbar button.active { background: var(--panel-2); color: var(--text); }
+
+    /* Progression view */
+    .grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+    table.grid { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13px; }
+    table.grid th, table.grid td {
+      border-bottom: 1px solid var(--line); border-right: 1px solid var(--line);
+      padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    table.grid th:first-child, table.grid td:first-child {
+      text-align: left; position: sticky; left: 0;
+      background: var(--panel); z-index: 1; font-weight: 600;
+      border-right: 1px solid var(--line);
+    }
+    table.grid thead th { background: var(--panel-2); color: var(--muted); font-weight: 600; position: sticky; top: 0; z-index: 2; }
+    table.grid thead th:first-child { z-index: 3; }
+    table.grid td.has-val { color: var(--text); }
+    table.grid td.empty { color: var(--muted); opacity: 0.4; }
+    table.grid td.up { color: var(--done); }
+
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .toolbar button {
+      background: var(--panel); color: var(--text); border: 1px solid var(--line);
+      padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .toolbar button.danger { color: #fca5a5; border-color: #5a2a2a; }
+
+    .hidden { display: none !important; }
+    .empty-state { color: var(--muted); text-align: center; padding: 40px 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <h1>Regimen</h1>
+      <span class="sub" id="cycleLabel"></span>
+    </div>
+    <div class="week-rail" id="weekRail"></div>
+  </header>
+
+  <main>
+    <section id="logView">
+      <div id="days"></div>
+    </section>
+
+    <section id="progView" class="hidden">
+      <div class="toolbar">
+        <button id="exportBtn">Export CSV</button>
+        <button id="resetBtn" class="danger">Reset all</button>
+      </div>
+      <div class="grid-wrap">
+        <table class="grid" id="progTable"></table>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button id="tabLog" class="active">Log</button>
+    <button id="tabProg">Progression</button>
+  </nav>
+
+  <script>
+    // --- Data model ---
+    const DAYS = [
+      { id: 'A', title: 'Day A — Press / Pull / Curl', exercises: [
+        { id: 'press', name: 'Press', scheme: '3×6' },
+        { id: 'lat_under', name: 'Lat — underhand', scheme: '3×6' },
+        { id: 'curl_under', name: 'Curl — underhand', scheme: '3×6' },
+      ]},
+      { id: 'B', title: 'Day B — Bench / Row / Narrow', exercises: [
+        { id: 'bench', name: 'Bench', scheme: '3×6' },
+        { id: 'row', name: 'Row', scheme: '3×6' },
+        { id: 'bench_narrow', name: 'Bench — narrow', scheme: '3×6' },
+      ]},
+      { id: 'C', title: 'Day C — Wide / Tricep / Curl', exercises: [
+        { id: 'lat_wide', name: 'Lat — ultrawide', scheme: '3×6' },
+        { id: 'rope_tri', name: 'Rope tricep extensions', scheme: '3×6' },
+        { id: 'curl_over', name: 'Curl — overhand', scheme: '3×6' },
+      ]},
+    ];
+    const ALL_EX = DAYS.flatMap(d => d.exercises.map(e => ({ ...e, dayId: d.id })));
+    const WEEKS = Array.from({ length: 13 }, (_, i) => i); // 0..12
+
+    const STORE_KEY = 'regimen.v1';
+    function loadStore() {
+      try { return JSON.parse(localStorage.getItem(STORE_KEY)) || { cycle: 'Regimen 2026-1', data: {} }; }
+      catch { return { cycle: 'Regimen 2026-1', data: {} }; }
+    }
+    function saveStore(s) { localStorage.setItem(STORE_KEY, JSON.stringify(s)); }
+    let store = loadStore();
+    function getVal(week, exId) {
+      return store.data[`w${week}`]?.[exId] ?? '';
+    }
+    function setVal(week, exId, val) {
+      const k = `w${week}`;
+      if (!store.data[k]) store.data[k] = {};
+      if (val === '' || val === null || val === undefined) delete store.data[k][exId];
+      else store.data[k][exId] = Number(val);
+      saveStore(store);
+    }
+    function weekHasAny(week) {
+      const k = `w${week}`;
+      return store.data[k] && Object.keys(store.data[k]).length > 0;
+    }
+    function lastValueBefore(week, exId) {
+      for (let w = week - 1; w >= 0; w--) {
+        const v = getVal(w, exId);
+        if (v !== '') return { week: w, val: v };
+      }
+      return null;
+    }
+
+    // --- State ---
+    let currentWeek = (() => {
+      // default to highest week with data, else 0
+      for (let w = WEEKS.length - 1; w >= 0; w--) if (weekHasAny(w)) return w;
+      return 0;
+    })();
+
+    // --- Render ---
+    const cycleLabel = document.getElementById('cycleLabel');
+    const weekRail = document.getElementById('weekRail');
+    const daysEl = document.getElementById('days');
+    const progTable = document.getElementById('progTable');
+
+    function renderHeader() {
+      cycleLabel.textContent = store.cycle;
+    }
+
+    function renderWeekRail() {
+      weekRail.innerHTML = '';
+      WEEKS.forEach(w => {
+        const b = document.createElement('button');
+        b.className = 'week-pill' + (w === currentWeek ? ' active' : '') + (weekHasAny(w) ? ' has-data' : '');
+        b.innerHTML = `Week<span class="num">${w}</span>`;
+        b.addEventListener('click', () => { currentWeek = w; renderAll(); b.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' }); });
+        weekRail.appendChild(b);
+      });
+      // scroll active into view
+      requestAnimationFrame(() => {
+        const active = weekRail.querySelector('.week-pill.active');
+        if (active) active.scrollIntoView({ inline: 'center', behavior: 'auto', block: 'nearest' });
+      });
+    }
+
+    function renderDays() {
+      daysEl.innerHTML = '';
+      DAYS.forEach(day => {
+        const filled = day.exercises.filter(e => getVal(currentWeek, e.id) !== '').length;
+        const wrap = document.createElement('section');
+        wrap.className = 'day';
+        wrap.innerHTML = `<h2>${day.title}<span class="count">${filled}/${day.exercises.length}</span></h2>`;
+        day.exercises.forEach(ex => {
+          const last = lastValueBefore(currentWeek, ex.id);
+          const cur = getVal(currentWeek, ex.id);
+          const row = document.createElement('div');
+          row.className = 'ex' + (cur !== '' ? ' done' : '');
+          row.innerHTML = `
+            <div>
+              <div class="name">${ex.name}</div>
+              <div class="meta">${ex.scheme}${last ? ` · <span class="last">last: ${last.val} (W${last.week})</span>` : ' · no prior data'}</div>
+            </div>
+            <input type="number" inputmode="decimal" step="2.5" min="0" placeholder="lb" value="${cur}" data-ex="${ex.id}">
+          `;
+          const input = row.querySelector('input');
+          input.addEventListener('input', () => {
+            setVal(currentWeek, ex.id, input.value);
+            row.classList.toggle('done', input.value !== '');
+            // update count without full re-render
+            const newFilled = day.exercises.filter(e => getVal(currentWeek, e.id) !== '').length;
+            wrap.querySelector('.count').textContent = `${newFilled}/${day.exercises.length}`;
+            // mark week pill as has-data
+            const pill = weekRail.children[currentWeek];
+            if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
+          });
+          wrap.appendChild(row);
+        });
+        daysEl.appendChild(wrap);
+      });
+    }
+
+    function renderProgression() {
+      let html = '<thead><tr><th>Exercise</th>';
+      WEEKS.forEach(w => html += `<th>W${w}</th>`);
+      html += '</tr></thead><tbody>';
+      ALL_EX.forEach(ex => {
+        html += `<tr><td>${ex.name}</td>`;
+        let prev = null;
+        WEEKS.forEach(w => {
+          const v = getVal(w, ex.id);
+          if (v === '') html += '<td class="empty">—</td>';
+          else {
+            const cls = (prev !== null && v > prev) ? 'has-val up' : 'has-val';
+            html += `<td class="${cls}">${v}</td>`;
+            prev = v;
+          }
+        });
+        html += '</tr>';
+      });
+      html += '</tbody>';
+      progTable.innerHTML = html;
+    }
+
+    function renderAll() {
+      renderHeader();
+      renderWeekRail();
+      renderDays();
+      renderProgression();
+    }
+
+    // --- Tabs ---
+    const tabLog = document.getElementById('tabLog');
+    const tabProg = document.getElementById('tabProg');
+    const logView = document.getElementById('logView');
+    const progView = document.getElementById('progView');
+    function showLog() {
+      tabLog.classList.add('active'); tabProg.classList.remove('active');
+      logView.classList.remove('hidden'); progView.classList.add('hidden');
+    }
+    function showProg() {
+      tabProg.classList.add('active'); tabLog.classList.remove('active');
+      progView.classList.remove('hidden'); logView.classList.add('hidden');
+      renderProgression();
+    }
+    tabLog.addEventListener('click', showLog);
+    tabProg.addEventListener('click', showProg);
+
+    // --- Toolbar ---
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      let csv = 'Exercise,' + WEEKS.map(w => 'W' + w).join(',') + '\n';
+      ALL_EX.forEach(ex => {
+        const row = [ex.name];
+        WEEKS.forEach(w => row.push(getVal(w, ex.id)));
+        csv += row.join(',') + '\n';
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `regimen-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    });
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      if (confirm('Erase all logged weights? This cannot be undone.')) {
+        store = { cycle: store.cycle, data: {} };
+        saveStore(store);
+        currentWeek = 0;
+        renderAll();
+      }
+    });
+
+    // --- Service worker (offline) ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
