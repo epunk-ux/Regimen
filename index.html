@@ -72,6 +72,10 @@
     .ex .name { font-weight: 600; font-size: 16px; }
     .ex .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .ex .meta .last { color: var(--accent-2); }
+    .ex .plates { font-size: 12px; color: var(--accent-2); margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .ex .plates.sub { color: var(--muted); }
+    .ex .plates.bar { color: var(--muted); }
+    .ex .plates:empty { display: none; }
     .ex input[type="number"] {
       width: 92px; padding: 12px 10px;
       background: var(--panel-2); border: 1px solid var(--line);
@@ -161,21 +165,41 @@
     // --- Data model ---
     const DAYS = [
       { id: 'A', title: 'Day A — Press / Pull / Curl', exercises: [
-        { id: 'press', name: 'Press', scheme: '3×6' },
-        { id: 'lat_under', name: 'Lat — underhand', scheme: '3×6' },
-        { id: 'curl_under', name: 'Curl — underhand', scheme: '3×6' },
+        { id: 'press', name: 'Press', scheme: '3×6', barbell: true },
+        { id: 'lat_under', name: 'Lat — underhand', scheme: '3×6', barbell: false },
+        { id: 'curl_under', name: 'Curl — underhand', scheme: '3×6', barbell: true },
       ]},
       { id: 'B', title: 'Day B — Bench / Row / Narrow', exercises: [
-        { id: 'bench', name: 'Bench', scheme: '3×6' },
-        { id: 'row', name: 'Row', scheme: '3×6' },
-        { id: 'bench_narrow', name: 'Bench — narrow', scheme: '3×6' },
+        { id: 'bench', name: 'Bench', scheme: '3×6', barbell: true },
+        { id: 'row', name: 'Row', scheme: '3×6', barbell: true },
+        { id: 'bench_narrow', name: 'Bench — narrow', scheme: '3×6', barbell: true },
       ]},
       { id: 'C', title: 'Day C — Wide / Tricep / Curl', exercises: [
-        { id: 'lat_wide', name: 'Lat — ultrawide', scheme: '3×6' },
-        { id: 'rope_tri', name: 'Rope tricep extensions', scheme: '3×6' },
-        { id: 'curl_over', name: 'Curl — overhand', scheme: '3×6' },
+        { id: 'lat_wide', name: 'Lat — ultrawide', scheme: '3×6', barbell: false },
+        { id: 'rope_tri', name: 'Rope tricep extensions', scheme: '3×6', barbell: false },
+        { id: 'curl_over', name: 'Curl — overhand', scheme: '3×6', barbell: true },
       ]},
     ];
+
+    // Plate math (lb)
+    const BAR_LB = 45;
+    const PLATES_LB = [45, 35, 25, 10, 5, 2.5];
+    function plateBreakdown(weight) {
+      const total = Number(weight);
+      if (!total || total <= 0) return null;
+      if (total < BAR_LB) return { kind: 'sub', text: `under bar (${BAR_LB} lb)` };
+      if (total === BAR_LB) return { kind: 'bar', text: 'just the bar' };
+      const perSide = (total - BAR_LB) / 2;
+      let remaining = perSide;
+      const parts = [];
+      for (const p of PLATES_LB) {
+        const count = Math.floor((remaining + 1e-9) / p);
+        if (count > 0) { parts.push({ p, count }); remaining -= count * p; }
+      }
+      const exact = Math.abs(remaining) < 0.01;
+      const list = parts.map(x => x.count > 1 ? `${x.count}×${x.p}` : `${x.p}`).join(' + ');
+      return { kind: exact ? 'load' : 'approx', text: `bar + ${list}/side${exact ? '' : ' (≈)'}` };
+    }
     const ALL_EX = DAYS.flatMap(d => d.exercises.map(e => ({ ...e, dayId: d.id })));
     const WEEKS = Array.from({ length: 13 }, (_, i) => i); // 0..12
 
@@ -257,13 +281,24 @@
             <div>
               <div class="name">${ex.name}</div>
               <div class="meta">${ex.scheme}${last ? ` · <span class="last">last: ${last.val} (W${last.week})</span>` : ' · no prior data'}</div>
+              <div class="plates"></div>
             </div>
             <input type="number" inputmode="decimal" step="2.5" min="0" placeholder="lb" value="${cur}" data-ex="${ex.id}">
           `;
           const input = row.querySelector('input');
+          const platesEl = row.querySelector('.plates');
+          function updatePlates() {
+            if (!ex.barbell) { platesEl.textContent = ''; platesEl.className = 'plates'; return; }
+            const b = plateBreakdown(input.value);
+            if (!b) { platesEl.textContent = ''; platesEl.className = 'plates'; return; }
+            platesEl.textContent = b.text;
+            platesEl.className = 'plates ' + b.kind;
+          }
+          updatePlates();
           input.addEventListener('input', () => {
             setVal(currentWeek, ex.id, input.value);
             row.classList.toggle('done', input.value !== '');
+            updatePlates();
             // update count without full re-render
             const newFilled = day.exercises.filter(e => getVal(currentWeek, e.id) !== '').length;
             wrap.querySelector('.count').textContent = `${newFilled}/${day.exercises.length}`;
