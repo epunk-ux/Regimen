@@ -129,6 +129,26 @@
 
     .hidden { display: none !important; }
     .empty-state { color: var(--muted); text-align: center; padding: 40px 20px; }
+
+    .bw {
+      display: grid; grid-template-columns: 1fr auto; gap: 10px;
+      align-items: center; padding: 12px 16px;
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 16px; margin-bottom: 14px;
+    }
+    .bw .name { font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
+    .bw .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .bw .meta .last { color: var(--accent-2); }
+    .bw input[type="number"] {
+      width: 92px; padding: 12px 10px;
+      background: var(--panel-2); border: 1px solid var(--line);
+      border-radius: 10px; color: var(--text); font-size: 17px;
+      text-align: right; font-variant-numeric: tabular-nums;
+      -moz-appearance: textfield;
+    }
+    .bw input[type="number"]::-webkit-outer-spin-button,
+    .bw input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .bw input[type="number"]:focus { outline: none; border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -142,6 +162,7 @@
 
   <main>
     <section id="logView">
+      <div id="bodyweight"></div>
       <div id="days"></div>
     </section>
 
@@ -316,6 +337,13 @@
       let html = '<thead><tr><th>Exercise</th>';
       WEEKS.forEach(w => html += `<th>W${w}</th>`);
       html += '</tr></thead><tbody>';
+      // Bodyweight row first
+      html += `<tr><td>Bodyweight</td>`;
+      WEEKS.forEach(w => {
+        const v = getVal(w, 'bw');
+        html += v === '' ? '<td class="empty">—</td>' : `<td class="has-val">${v}</td>`;
+      });
+      html += '</tr>';
       ALL_EX.forEach(ex => {
         html += `<tr><td>${ex.name}</td>`;
         let prev = null;
@@ -334,9 +362,30 @@
       progTable.innerHTML = html;
     }
 
+    function renderBodyweight() {
+      const el = document.getElementById('bodyweight');
+      const cur = getVal(currentWeek, 'bw');
+      const last = lastValueBefore(currentWeek, 'bw');
+      el.className = 'bw';
+      el.innerHTML = `
+        <div>
+          <div class="name">Bodyweight</div>
+          <div class="meta">Week ${currentWeek}${last ? ` · <span class="last">last: ${last.val} (W${last.week})</span>` : ' · no prior data'}</div>
+        </div>
+        <input type="number" inputmode="decimal" step="0.1" min="0" placeholder="lb" value="${cur}">
+      `;
+      const input = el.querySelector('input');
+      input.addEventListener('input', () => {
+        setVal(currentWeek, 'bw', input.value);
+        const pill = weekRail.children[currentWeek];
+        if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
+      });
+    }
+
     function renderAll() {
       renderHeader();
       renderWeekRail();
+      renderBodyweight();
       renderDays();
       renderProgression();
     }
@@ -361,6 +410,9 @@
     // --- Toolbar ---
     document.getElementById('exportBtn').addEventListener('click', () => {
       let csv = 'Exercise,' + WEEKS.map(w => 'W' + w).join(',') + '\n';
+      const bwRow = ['Bodyweight'];
+      WEEKS.forEach(w => bwRow.push(getVal(w, 'bw')));
+      csv += bwRow.join(',') + '\n';
       ALL_EX.forEach(ex => {
         const row = [ex.name];
         WEEKS.forEach(w => row.push(getVal(w, ex.id)));
