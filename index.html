@@ -322,7 +322,7 @@
           const row = document.createElement('div');
           row.className = 'ex' + (cur !== '' ? ' done' : '');
           const incNow = getInc(currentWeek, ex.id);
-          const lastInc = last && last.inc ? ' <span class="up-flag">↑ go up</span>' : '';
+          const lastInc = last && last.inc ? ' <span class="up-flag">↑ increase</span>' : '';
           row.innerHTML = `
             <div>
               <div class="name">${ex.name}</div>
