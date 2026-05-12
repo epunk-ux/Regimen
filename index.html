@@ -65,13 +65,26 @@
     .day h2 .count { font-size: 12px; color: var(--accent-2); }
 
     .ex {
-      display: grid; grid-template-columns: 1fr auto; gap: 10px;
+      display: grid; grid-template-columns: 1fr auto auto; gap: 8px;
       align-items: center; padding: 12px 16px;
       border-top: 1px solid var(--line);
     }
     .ex .name { font-weight: 600; font-size: 16px; }
     .ex .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .ex .meta .last { color: var(--accent-2); }
+    .ex .meta .up-flag { color: var(--done); font-weight: 700; margin-left: 4px; }
+    .inc-btn {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--line); border-radius: 10px;
+      width: 44px; height: 44px;
+      font-size: 18px; font-weight: 700;
+      cursor: pointer; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .inc-btn.active {
+      background: var(--done); color: #0b0d10; border-color: var(--done);
+    }
+    .inc-btn:active { transform: scale(0.94); }
     .ex .plates { font-size: 12px; color: var(--accent-2); margin-top: 4px; font-variant-numeric: tabular-nums; }
     .ex .plates.sub { color: var(--muted); }
     .ex .plates.bar { color: var(--muted); }
@@ -248,9 +261,19 @@
     function lastValueBefore(week, exId) {
       for (let w = week - 1; w >= 0; w--) {
         const v = getVal(w, exId);
-        if (v !== '') return { week: w, val: v };
+        if (v !== '') return { week: w, val: v, inc: getInc(w, exId) };
       }
       return null;
+    }
+    function getInc(week, exId) {
+      return !!(store.data[`w${week}`]?.[`${exId}_inc`]);
+    }
+    function setInc(week, exId, val) {
+      const k = `w${week}`;
+      if (!store.data[k]) store.data[k] = {};
+      if (val) store.data[k][`${exId}_inc`] = true;
+      else delete store.data[k][`${exId}_inc`];
+      saveStore(store);
     }
 
     // --- State ---
@@ -298,16 +321,27 @@
           const cur = getVal(currentWeek, ex.id);
           const row = document.createElement('div');
           row.className = 'ex' + (cur !== '' ? ' done' : '');
+          const incNow = getInc(currentWeek, ex.id);
+          const lastInc = last && last.inc ? ' <span class="up-flag">↑ go up</span>' : '';
           row.innerHTML = `
             <div>
               <div class="name">${ex.name}</div>
-              <div class="meta">${ex.scheme}${last ? ` · <span class="last">last: ${last.val} (W${last.week})</span>` : ' · no prior data'}</div>
+              <div class="meta">${ex.scheme}${last ? ` · <span class="last">last: ${last.val} (W${last.week})</span>${lastInc}` : ' · no prior data'}</div>
               <div class="plates"></div>
             </div>
             <input type="number" inputmode="decimal" step="2.5" min="0" placeholder="lb" value="${cur}" data-ex="${ex.id}">
+            <button class="inc-btn ${incNow ? 'active' : ''}" type="button" aria-label="Mark to increase next week" title="Mark to increase next week">↑</button>
           `;
           const input = row.querySelector('input');
           const platesEl = row.querySelector('.plates');
+          const incBtn = row.querySelector('.inc-btn');
+          incBtn.addEventListener('click', () => {
+            const newVal = !getInc(currentWeek, ex.id);
+            setInc(currentWeek, ex.id, newVal);
+            incBtn.classList.toggle('active', newVal);
+            const pill = weekRail.children[currentWeek];
+            if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
+          });
           function updatePlates() {
             if (!ex.barbell) { platesEl.textContent = ''; platesEl.className = 'plates'; return; }
             const b = plateBreakdown(input.value);
