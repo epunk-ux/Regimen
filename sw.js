@@ -1,4 +1,4 @@
-const CACHE = 'regimen-v6';
+const CACHE = 'regimen-v7';
 const ASSETS = [
   './',
   './index.html',
