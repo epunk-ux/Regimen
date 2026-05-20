@@ -289,16 +289,13 @@
       saveStore(store);
     }
     function todaySuggestion(week, exId) {
-      // Find the two most recent logged weeks before `week`
-      const found = [];
-      for (let w = week - 1; w >= 0 && found.length < 2; w--) {
-        const v = getVal(w, exId);
-        if (v !== '') found.push(v);
-      }
-      if (found.length === 0) return null;
-      const val = found[0];
-      const bumped = found.length >= 2 && val > found[1];
-      return { val, bumped };
+      // Today is based on the most recent logged week's value,
+      // bumped by +5 only if that week was marked 'inc' (green).
+      const last = lastValueBefore(week, exId);
+      if (!last) return null;
+      const prevMark = getMark(last.week, exId);
+      const bumped = prevMark === 'inc';
+      return { val: bumped ? last.val + 5 : last.val, bumped };
     }
 
     // --- State ---
@@ -372,9 +369,11 @@
             setMark(currentWeek, ex.id, newMark);
             incBtn.classList.toggle('active', newMark === 'inc');
             holdBtn.classList.toggle('active', newMark === 'hold');
-            if (newMark && today) {
-              const newVal = newMark === 'inc' ? today.val + 5 : today.val;
-              input.value = newVal;
+            // Orange (hold) fills the input with Today as a shortcut.
+            // Green (inc) does NOT touch this week's input — it only marks
+            // intent so that NEXT week's Today is computed as this value + 5.
+            if (newMark === 'hold' && today) {
+              input.value = today.val;
               input.dispatchEvent(new Event('input'));
             } else {
               const pill = weekRail.children[currentWeek];
