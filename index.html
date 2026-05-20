@@ -73,6 +73,8 @@
     .ex .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .ex .meta .last { color: var(--accent-2); }
     .ex .meta .up-flag { color: var(--done); font-weight: 700; margin-left: 4px; }
+    .ex .meta .today { color: var(--accent-2); font-weight: 600; }
+    .ex .meta .today .bump { color: var(--done); margin-left: 2px; }
     .inc-btn {
       background: transparent; color: var(--muted);
       border: 1px solid var(--line); border-radius: 8px;
@@ -276,6 +278,11 @@
       else delete store.data[k][`${exId}_inc`];
       saveStore(store);
     }
+    function todaySuggestion(week, exId) {
+      const last = lastValueBefore(week, exId);
+      if (!last) return null;
+      return { val: last.inc ? last.val + 5 : last.val, bumped: last.inc };
+    }
 
     // --- State ---
     let currentWeek = (() => {
@@ -318,16 +325,18 @@
         wrap.className = 'day';
         wrap.innerHTML = `<h2>${day.title}<span class="count">${filled}/${day.exercises.length}</span></h2>`;
         day.exercises.forEach(ex => {
-          const last = lastValueBefore(currentWeek, ex.id);
           const cur = getVal(currentWeek, ex.id);
           const row = document.createElement('div');
           row.className = 'ex' + (cur !== '' ? ' done' : '');
           const incNow = getInc(currentWeek, ex.id);
-          const lastInc = last && last.inc ? ' <span class="up-flag">↑ increase</span>' : '';
+          const today = todaySuggestion(currentWeek, ex.id);
+          const todayText = today
+            ? ` · <span class="today">Today: ${today.val}${today.bumped ? ' <span class="bump">↑</span>' : ''}</span>`
+            : ' · no prior data';
           row.innerHTML = `
             <div>
               <div class="name">${ex.name}</div>
-              <div class="meta">${ex.scheme}${last ? ` · <span class="last">last: ${last.val} (W${last.week})</span>${lastInc}` : ' · no prior data'}</div>
+              <div class="meta">${ex.scheme}${todayText}</div>
               <div class="plates"></div>
             </div>
             <input type="number" inputmode="decimal" step="2.5" min="0" placeholder="lb" value="${cur}" data-ex="${ex.id}">
