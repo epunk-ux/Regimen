@@ -75,7 +75,8 @@
     .ex .meta .up-flag { color: var(--done); font-weight: 700; margin-left: 4px; }
     .ex .meta .today { color: var(--accent-2); font-weight: 600; }
     .ex .meta .today .bump { color: var(--done); margin-left: 2px; }
-    .inc-btn {
+    .mark-btns { display: flex; gap: 4px; }
+    .inc-btn, .hold-btn {
       background: transparent; color: var(--muted);
       border: 1px solid var(--line); border-radius: 8px;
       width: 28px; height: 44px;
@@ -87,7 +88,10 @@
     .inc-btn.active {
       background: var(--done); color: #0b0d10; border-color: var(--done);
     }
-    .inc-btn:active { transform: scale(0.94); }
+    .hold-btn.active {
+      background: var(--accent); color: #1a0f08; border-color: var(--accent);
+    }
+    .inc-btn:active, .hold-btn:active { transform: scale(0.94); }
     .ex .plates { font-size: 12px; color: var(--accent-2); margin-top: 4px; font-variant-numeric: tabular-nums; }
     .ex .plates.sub { color: var(--muted); }
     .ex .plates.bar { color: var(--muted); }
@@ -264,24 +268,29 @@
     function lastValueBefore(week, exId) {
       for (let w = week - 1; w >= 0; w--) {
         const v = getVal(w, exId);
-        if (v !== '') return { week: w, val: v, inc: getInc(w, exId) };
+        if (v !== '') return { week: w, val: v };
       }
       return null;
     }
-    function getInc(week, exId) {
-      return !!(store.data[`w${week}`]?.[`${exId}_inc`]);
+    function getMark(week, exId) {
+      const w = store.data[`w${week}`];
+      if (!w) return null;
+      if (w[`${exId}_inc`]) return 'inc';
+      if (w[`${exId}_hold`]) return 'hold';
+      return null;
     }
-    function setInc(week, exId, val) {
+    function setMark(week, exId, mark) {
       const k = `w${week}`;
       if (!store.data[k]) store.data[k] = {};
-      if (val) store.data[k][`${exId}_inc`] = true;
-      else delete store.data[k][`${exId}_inc`];
+      delete store.data[k][`${exId}_inc`];
+      delete store.data[k][`${exId}_hold`];
+      if (mark === 'inc') store.data[k][`${exId}_inc`] = true;
+      else if (mark === 'hold') store.data[k][`${exId}_hold`] = true;
       saveStore(store);
     }
     function todaySuggestion(week, exId) {
       const last = lastValueBefore(week, exId);
-      if (!last) return null;
-      return { val: last.inc ? last.val + 5 : last.val, bumped: last.inc };
+      return last ? last.val : null;
     }
 
     // --- State ---
@@ -328,10 +337,10 @@
           const cur = getVal(currentWeek, ex.id);
           const row = document.createElement('div');
           row.className = 'ex' + (cur !== '' ? ' done' : '');
-          const incNow = getInc(currentWeek, ex.id);
+          const markNow = getMark(currentWeek, ex.id);
           const today = todaySuggestion(currentWeek, ex.id);
-          const todayText = today
-            ? ` · <span class="today">Today: ${today.val}${today.bumped ? ' <span class="bump">↑</span>' : ''}</span>`
+          const todayText = today !== null
+            ? ` · <span class="today">Today: ${today}</span>`
             : ' · no prior data';
           row.innerHTML = `
             <div>
@@ -340,18 +349,32 @@
               <div class="plates"></div>
             </div>
             <input type="number" inputmode="decimal" step="2.5" min="0" placeholder="lb" value="${cur}" data-ex="${ex.id}">
-            <button class="inc-btn ${incNow ? 'active' : ''}" type="button" aria-label="Mark to increase next week" title="Mark to increase next week">↑</button>
+            <div class="mark-btns">
+              <button class="hold-btn ${markNow === 'hold' ? 'active' : ''}" type="button" aria-label="No increase: copy Today" title="No increase: copy Today">=</button>
+              <button class="inc-btn ${markNow === 'inc' ? 'active' : ''}" type="button" aria-label="Increase: Today + 5" title="Increase: Today + 5">↑</button>
+            </div>
           `;
           const input = row.querySelector('input');
           const platesEl = row.querySelector('.plates');
           const incBtn = row.querySelector('.inc-btn');
-          incBtn.addEventListener('click', () => {
-            const newVal = !getInc(currentWeek, ex.id);
-            setInc(currentWeek, ex.id, newVal);
-            incBtn.classList.toggle('active', newVal);
-            const pill = weekRail.children[currentWeek];
-            if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
-          });
+          const holdBtn = row.querySelector('.hold-btn');
+          function applyMark(mark) {
+            const current = getMark(currentWeek, ex.id);
+            const newMark = current === mark ? null : mark;
+            setMark(currentWeek, ex.id, newMark);
+            incBtn.classList.toggle('active', newMark === 'inc');
+            holdBtn.classList.toggle('active', newMark === 'hold');
+            if (newMark && today !== null) {
+              const newVal = newMark === 'inc' ? today + 5 : today;
+              input.value = newVal;
+              input.dispatchEvent(new Event('input'));
+            } else {
+              const pill = weekRail.children[currentWeek];
+              if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
+            }
+          }
+          incBtn.addEventListener('click', () => applyMark('inc'));
+          holdBtn.addEventListener('click', () => applyMark('hold'));
           function updatePlates() {
             if (!ex.barbell) { platesEl.textContent = ''; platesEl.className = 'plates'; return; }
             const b = plateBreakdown(input.value);
