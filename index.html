@@ -229,10 +229,11 @@
     const BAR_LB = 45;
     const PLATES_LB = [45, 35, 25, 10, 5, 2.5];
     function plateBreakdown(weight) {
+      if (weight === '' || weight === null || weight === undefined) return null;
       const total = Number(weight);
-      if (!total || total <= 0) return null;
+      if (isNaN(total) || total < 0) return null;
+      if (total === 0 || total === BAR_LB) return { kind: 'bar', text: 'just the bar' };
       if (total < BAR_LB) return { kind: 'sub', text: `under bar (${BAR_LB} lb)` };
-      if (total === BAR_LB) return { kind: 'bar', text: 'just the bar' };
       const perSide = (total - BAR_LB) / 2;
       let remaining = perSide;
       const parts = [];
@@ -403,6 +404,13 @@
             // mark week pill as has-data
             const pill = weekRail.children[currentWeek];
             if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
+          });
+          input.addEventListener('blur', () => {
+            // 0 in a barbell exercise = "just the bar" → snap to BAR_LB
+            if (ex.barbell && input.value !== '' && Number(input.value) === 0) {
+              input.value = BAR_LB;
+              input.dispatchEvent(new Event('input'));
+            }
           });
           wrap.appendChild(row);
         });
