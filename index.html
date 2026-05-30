@@ -360,7 +360,7 @@
             <input type="number" inputmode="decimal" step="2.5" min="0" placeholder="lb" value="${cur}" data-ex="${ex.id}">
             <div class="mark-btns">
               <button class="hold-btn ${markNow === 'hold' ? 'active' : ''}" type="button" aria-label="No increase: copy Today" title="No increase: copy Today">=</button>
-              <button class="inc-btn ${markNow === 'inc' ? 'active' : ''}" type="button" aria-label="Increase: Today + 5" title="Increase: Today + 5">↑</button>
+              <button class="inc-btn ${markNow === 'inc' ? 'active' : ''}" type="button" aria-label="Increase: copy Today, bump next week" title="Increase: copy Today, bump next week">↑</button>
             </div>
           `;
           const input = row.querySelector('input');
@@ -373,10 +373,9 @@
             setMark(currentWeek, ex.id, newMark);
             incBtn.classList.toggle('active', newMark === 'inc');
             holdBtn.classList.toggle('active', newMark === 'hold');
-            // Orange (hold) fills the input with Today as a shortcut.
-            // Green (inc) does NOT touch this week's input — it only marks
-            // intent so that NEXT week's Today is computed as this value + 5.
-            if (newMark === 'hold' && today) {
+            // Both buttons copy Today into this week's input.
+            // Green (inc) additionally marks intent so NEXT week's Today is this value + 5.
+            if ((newMark === 'hold' || newMark === 'inc') && today) {
               input.value = today.val;
               input.dispatchEvent(new Event('input'));
             } else {
