@@ -206,7 +206,7 @@
     // --- Data model ---
     const DAYS = [
       { id: 'A', title: 'Day A — Deadlift / Press / Pull / Curl', exercises: [
-        { id: 'trap_bar_dl', name: 'Deadlift', scheme: '3×6', barbell: false },
+        { id: 'trap_bar_dl', name: 'Deadlift', scheme: '3×6', barbell: true },
         { id: 'press', name: 'Press', scheme: '3×6', barbell: true },
         { id: 'lat_under', name: 'Lat — underhand', scheme: '3×6', barbell: false },
         { id: 'curl_under', name: 'Curl — underhand', scheme: '3×6', barbell: true },
@@ -214,8 +214,8 @@
       { id: 'B', title: 'Day B — Zercher / Bench / Row / Lateral', exercises: [
         { id: 'zercher', name: 'Zercher squat', scheme: '3×6', barbell: true },
         { id: 'bench', name: 'Bench', scheme: '3×6', barbell: true },
-        { id: 'row', name: 'Row', scheme: '3×6', barbell: true },
-        { id: 'bench_narrow', name: 'Lateral raise', scheme: '3×6', barbell: false },
+        { id: 'row', name: 'Row', scheme: '3×6', barbell: false },
+        { id: 'bench_narrow', name: 'Lateral raise', scheme: '1×20', barbell: false },
       ]},
       { id: 'C', title: 'Day C — RDL / Wide / Tri / Curl', exercises: [
         { id: 'rdl', name: 'Romanian deadlift', scheme: '3×6', barbell: true },
@@ -227,7 +227,7 @@
 
     // Plate math (lb)
     const BAR_LB = 45;
-    const PLATES_LB = [45, 35, 25, 10, 5, 2.5];
+    const PLATES_LB = [45, 25, 10, 5, 2.5];
     function plateBreakdown(weight) {
       if (weight === '' || weight === null || weight === undefined) return null;
       const total = Number(weight);
