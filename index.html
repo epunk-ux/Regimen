@@ -387,7 +387,10 @@
           holdBtn.addEventListener('click', () => applyMark('hold'));
           function updatePlates() {
             if (!ex.barbell) { platesEl.textContent = ''; platesEl.className = 'plates'; return; }
-            const b = plateBreakdown(input.value);
+            // Show plates for the entered weight; if the field is empty, fall back
+            // to the Today suggestion so the loading hint is always visible.
+            const basis = input.value !== '' ? input.value : (today ? today.val : '');
+            const b = plateBreakdown(basis);
             if (!b) { platesEl.textContent = ''; platesEl.className = 'plates'; return; }
             platesEl.textContent = b.text;
             platesEl.className = 'plates ' + b.kind;
