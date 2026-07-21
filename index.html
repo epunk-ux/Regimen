@@ -204,25 +204,21 @@
 
   <script>
     // --- Data model ---
+    // Six lifts, each hit twice across the 3-day rotation.
+    // Shared lifts (e.g. Bench on Day A + Day B) read/write the same weekly value.
+    const EXERCISES = [
+      { id: 'zercher',   name: 'Zercher squat',            scheme: '3×6', barbell: true },
+      { id: 'bench',     name: 'Bench press',              scheme: '3×6', barbell: true },
+      { id: 'ohp',       name: 'Overhead press',           scheme: '3×6', barbell: true },
+      { id: 'rdl',       name: 'Romanian deadlift',        scheme: '3×6', barbell: true },
+      { id: 'lat_over',  name: 'Lat pulldown — overhand',  scheme: '3×6', barbell: false },
+      { id: 'lat_under', name: 'Lat pulldown — underhand', scheme: '3×6', barbell: false },
+    ];
+    const EX_BY_ID = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
     const DAYS = [
-      { id: 'A', title: 'Day A — Deadlift / Press / Pull / Curl', exercises: [
-        { id: 'trap_bar_dl', name: 'Deadlift', scheme: '3×6', barbell: true },
-        { id: 'press', name: 'Press', scheme: '3×6', barbell: true },
-        { id: 'lat_under', name: 'Lat — underhand', scheme: '3×6', barbell: false },
-        { id: 'curl_under', name: 'Curl — underhand', scheme: '1×20', barbell: true },
-      ]},
-      { id: 'B', title: 'Day B — Zercher / Bench / Row / Lateral', exercises: [
-        { id: 'zercher', name: 'Zercher squat', scheme: '3×6', barbell: true },
-        { id: 'bench', name: 'Bench', scheme: '3×6', barbell: true },
-        { id: 'row', name: 'Row', scheme: '3×6', barbell: false },
-        { id: 'bench_narrow', name: 'Lateral raise', scheme: '1×20', barbell: false },
-      ]},
-      { id: 'C', title: 'Day C — RDL / Wide / Tri / Curl', exercises: [
-        { id: 'rdl', name: 'Romanian deadlift', scheme: '3×6', barbell: true },
-        { id: 'lat_wide', name: 'Lat — ultrawide', scheme: '3×6', barbell: false },
-        { id: 'rope_tri', name: 'Rope tricep extensions', scheme: '3×6', barbell: false },
-        { id: 'curl_over', name: 'Curl — overhand', scheme: '1×20', barbell: true },
-      ]},
+      { id: 'A', title: 'Day A — Squat + Pull', exIds: ['zercher', 'bench', 'lat_over', 'lat_under'] },
+      { id: 'B', title: 'Day B — Press',        exIds: ['rdl', 'bench', 'ohp', 'lat_under'] },
+      { id: 'C', title: 'Day C — Lower',        exIds: ['zercher', 'rdl', 'ohp', 'lat_over'] },
     ];
 
     // Plate math (lb)
@@ -245,13 +241,12 @@
       const list = parts.map(x => x.count > 1 ? `${x.count}×${x.p}` : `${x.p}`).join(' + ');
       return { kind: exact ? 'load' : 'approx', text: `bar + ${list}/side${exact ? '' : ' (≈)'}` };
     }
-    const ALL_EX = DAYS.flatMap(d => d.exercises.map(e => ({ ...e, dayId: d.id })));
     const WEEKS = Array.from({ length: 13 }, (_, i) => i); // 0..12
 
-    const STORE_KEY = 'regimen.v1';
+    const STORE_KEY = 'regimen.v2'; // v2 = 3-day rotation rebuild; fresh start from week 0
     function loadStore() {
-      try { return JSON.parse(localStorage.getItem(STORE_KEY)) || { cycle: 'Regimen 2026-1', data: {} }; }
-      catch { return { cycle: 'Regimen 2026-1', data: {} }; }
+      try { return JSON.parse(localStorage.getItem(STORE_KEY)) || { cycle: 'Regimen 2026-2', data: {} }; }
+      catch { return { cycle: 'Regimen 2026-2', data: {} }; }
     }
     function saveStore(s) { localStorage.setItem(STORE_KEY, JSON.stringify(s)); }
     let store = loadStore();
@@ -335,18 +330,34 @@
       });
     }
 
+    // Shared lifts render as one row per day; all rows for an exId stay in sync.
+    let exRowRefs = {};    // exId -> [refresh fns]
+    let dayCountRefs = []; // per-day count updaters
+    function syncEx(exId) {
+      (exRowRefs[exId] || []).forEach(fn => fn());
+      dayCountRefs.forEach(fn => fn());
+      const pill = weekRail.children[currentWeek];
+      if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
+    }
+
     function renderDays() {
       daysEl.innerHTML = '';
+      exRowRefs = {};
+      dayCountRefs = [];
       DAYS.forEach(day => {
-        const filled = day.exercises.filter(e => getVal(currentWeek, e.id) !== '').length;
+        const exList = day.exIds.map(id => EX_BY_ID[id]);
         const wrap = document.createElement('section');
         wrap.className = 'day';
-        wrap.innerHTML = `<h2>${day.title}<span class="count">${filled}/${day.exercises.length}</span></h2>`;
-        day.exercises.forEach(ex => {
-          const cur = getVal(currentWeek, ex.id);
+        wrap.innerHTML = `<h2>${day.title}<span class="count"></span></h2>`;
+        const countEl = wrap.querySelector('.count');
+        function updateCount() {
+          const filled = exList.filter(e => getVal(currentWeek, e.id) !== '').length;
+          countEl.textContent = `${filled}/${exList.length}`;
+        }
+        dayCountRefs.push(updateCount);
+        exList.forEach(ex => {
           const row = document.createElement('div');
-          row.className = 'ex' + (cur !== '' ? ' done' : '');
-          const markNow = getMark(currentWeek, ex.id);
+          row.className = 'ex';
           const today = todaySuggestion(currentWeek, ex.id);
           const todayText = today
             ? ` · <span class="today${today.bumped ? ' up' : ''}">Today: ${today.val}${today.bumped ? ' ↑' : ''}</span>`
@@ -357,34 +368,16 @@
               <div class="meta">${ex.scheme}${todayText}</div>
               <div class="plates"></div>
             </div>
-            <input type="number" inputmode="decimal" step="2.5" min="0" placeholder="lb" value="${cur}" data-ex="${ex.id}">
+            <input type="number" inputmode="decimal" step="2.5" min="0" placeholder="lb" data-ex="${ex.id}">
             <div class="mark-btns">
-              <button class="hold-btn ${markNow === 'hold' ? 'active' : ''}" type="button" aria-label="No increase: copy Today" title="No increase: copy Today">=</button>
-              <button class="inc-btn ${markNow === 'inc' ? 'active' : ''}" type="button" aria-label="Increase: copy Today, bump next week" title="Increase: copy Today, bump next week">↑</button>
+              <button class="hold-btn" type="button" aria-label="No increase: copy Today" title="No increase: copy Today">=</button>
+              <button class="inc-btn" type="button" aria-label="Increase: copy Today, bump next week" title="Increase: copy Today, bump next week">↑</button>
             </div>
           `;
           const input = row.querySelector('input');
           const platesEl = row.querySelector('.plates');
           const incBtn = row.querySelector('.inc-btn');
           const holdBtn = row.querySelector('.hold-btn');
-          function applyMark(mark) {
-            const current = getMark(currentWeek, ex.id);
-            const newMark = current === mark ? null : mark;
-            setMark(currentWeek, ex.id, newMark);
-            incBtn.classList.toggle('active', newMark === 'inc');
-            holdBtn.classList.toggle('active', newMark === 'hold');
-            // Both buttons copy Today into this week's input.
-            // Green (inc) additionally marks intent so NEXT week's Today is this value + 5.
-            if ((newMark === 'hold' || newMark === 'inc') && today) {
-              input.value = today.val;
-              input.dispatchEvent(new Event('input'));
-            } else {
-              const pill = weekRail.children[currentWeek];
-              if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
-            }
-          }
-          incBtn.addEventListener('click', () => applyMark('inc'));
-          holdBtn.addEventListener('click', () => applyMark('hold'));
           function updatePlates() {
             if (!ex.barbell) { platesEl.textContent = ''; platesEl.className = 'plates'; return; }
             // Show plates for the entered weight; if the field is empty, fall back
@@ -395,17 +388,33 @@
             platesEl.textContent = b.text;
             platesEl.className = 'plates ' + b.kind;
           }
-          updatePlates();
+          function refreshRow() {
+            const val = getVal(currentWeek, ex.id);
+            // Don't clobber the input the user is actively typing in
+            if (document.activeElement !== input) input.value = val;
+            row.classList.toggle('done', val !== '');
+            const m = getMark(currentWeek, ex.id);
+            incBtn.classList.toggle('active', m === 'inc');
+            holdBtn.classList.toggle('active', m === 'hold');
+            updatePlates();
+          }
+          (exRowRefs[ex.id] = exRowRefs[ex.id] || []).push(refreshRow);
+          function applyMark(mark) {
+            const current = getMark(currentWeek, ex.id);
+            const newMark = current === mark ? null : mark;
+            setMark(currentWeek, ex.id, newMark);
+            // Both buttons copy Today into the field.
+            // Green (inc) additionally marks intent so NEXT week's Today is this value + 5.
+            if ((newMark === 'hold' || newMark === 'inc') && today) {
+              setVal(currentWeek, ex.id, today.val);
+            }
+            syncEx(ex.id);
+          }
+          incBtn.addEventListener('click', () => applyMark('inc'));
+          holdBtn.addEventListener('click', () => applyMark('hold'));
           input.addEventListener('input', () => {
             setVal(currentWeek, ex.id, input.value);
-            row.classList.toggle('done', input.value !== '');
-            updatePlates();
-            // update count without full re-render
-            const newFilled = day.exercises.filter(e => getVal(currentWeek, e.id) !== '').length;
-            wrap.querySelector('.count').textContent = `${newFilled}/${day.exercises.length}`;
-            // mark week pill as has-data
-            const pill = weekRail.children[currentWeek];
-            if (pill) pill.classList.toggle('has-data', weekHasAny(currentWeek));
+            syncEx(ex.id);
           });
           input.addEventListener('blur', () => {
             // 0 in a barbell exercise = "just the bar" → snap to BAR_LB
@@ -414,8 +423,10 @@
               input.dispatchEvent(new Event('input'));
             }
           });
+          refreshRow();
           wrap.appendChild(row);
         });
+        updateCount();
         daysEl.appendChild(wrap);
       });
     }
@@ -431,7 +442,7 @@
         html += v === '' ? '<td class="empty">—</td>' : `<td class="has-val">${v}</td>`;
       });
       html += '</tr>';
-      ALL_EX.forEach(ex => {
+      EXERCISES.forEach(ex => {
         html += `<tr><td>${ex.name}</td>`;
         let prev = null;
         WEEKS.forEach(w => {
@@ -500,7 +511,7 @@
       const bwRow = ['Bodyweight'];
       WEEKS.forEach(w => bwRow.push(getVal(w, 'bw')));
       csv += bwRow.join(',') + '\n';
-      ALL_EX.forEach(ex => {
+      EXERCISES.forEach(ex => {
         const row = [ex.name];
         WEEKS.forEach(w => row.push(getVal(w, ex.id)));
         csv += row.join(',') + '\n';
