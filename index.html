@@ -204,21 +204,22 @@
 
   <script>
     // --- Data model ---
-    // Six lifts, each hit twice across the 3-day rotation.
-    // Shared lifts (e.g. Bench on Day A + Day B) read/write the same weekly value.
+    // Six lifts, each hit twice across the 4-day rotation.
+    // Shared lifts (e.g. Zercher on Day A + Day C) read/write the same weekly value.
     const EXERCISES = [
       { id: 'zercher',   name: 'Zercher squat',            scheme: '3×6', barbell: true },
-      { id: 'bench',     name: 'Bench press',              scheme: '3×6', barbell: true },
       { id: 'ohp',       name: 'Overhead press',           scheme: '3×6', barbell: true },
       { id: 'rdl',       name: 'Romanian deadlift',        scheme: '3×6', barbell: true },
-      { id: 'lat_over',  name: 'Lat pulldown — overhand',  scheme: '3×6', barbell: false },
-      { id: 'lat_under', name: 'Lat pulldown — underhand', scheme: '3×6', barbell: false },
+      { id: 'bb_row',    name: 'Barbell bent row',         scheme: '3×6', barbell: true },
+      { id: 'lat_over',  name: 'Pulldown (over)',          scheme: '3×6', barbell: false },
+      { id: 'lat_under', name: 'Pulldown (under)',         scheme: '3×6', barbell: false },
     ];
     const EX_BY_ID = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
     const DAYS = [
-      { id: 'A', title: 'Day A — Squat + Pull', exIds: ['zercher', 'bench', 'lat_over', 'lat_under'] },
-      { id: 'B', title: 'Day B — Press',        exIds: ['rdl', 'bench', 'ohp', 'lat_under'] },
-      { id: 'C', title: 'Day C — Lower',        exIds: ['zercher', 'rdl', 'ohp', 'lat_over'] },
+      { id: 'A', title: 'Day A — Squat + Pull',  exIds: ['zercher', 'bb_row', 'lat_over'] },
+      { id: 'B', title: 'Day B — Hinge + Press', exIds: ['rdl', 'ohp', 'lat_over'] },
+      { id: 'C', title: 'Day C — Squat + Pull',  exIds: ['zercher', 'bb_row', 'lat_under'] },
+      { id: 'D', title: 'Day D — Hinge + Press', exIds: ['rdl', 'ohp', 'lat_under'] },
     ];
 
     // Plate math (lb)
@@ -319,7 +320,7 @@
       WEEKS.forEach(w => {
         const b = document.createElement('button');
         b.className = 'week-pill' + (w === currentWeek ? ' active' : '') + (weekHasAny(w) ? ' has-data' : '');
-        b.innerHTML = `Week<span class="num">${w}</span>`;
+        b.innerHTML = `${w === 0 ? 'Base' : 'Round'}<span class="num">${w}</span>`;
         b.addEventListener('click', () => { currentWeek = w; renderAll(); b.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' }); });
         weekRail.appendChild(b);
       });
@@ -433,7 +434,7 @@
 
     function renderProgression() {
       let html = '<thead><tr><th>Exercise</th>';
-      WEEKS.forEach(w => html += `<th>W${w}</th>`);
+      WEEKS.forEach(w => html += `<th>R${w}</th>`);
       html += '</tr></thead><tbody>';
       // Bodyweight row first
       html += `<tr><td>Bodyweight</td>`;
@@ -468,7 +469,7 @@
       el.innerHTML = `
         <div>
           <div class="name">Bodyweight</div>
-          <div class="meta">Week ${currentWeek}${last ? ` · <span class="last">last: ${last.val} (W${last.week})</span>` : ' · no prior data'}</div>
+          <div class="meta">Round ${currentWeek}${last ? ` · <span class="last">last: ${last.val} (R${last.week})</span>` : ' · no prior data'}</div>
         </div>
         <input type="number" inputmode="decimal" step="0.1" min="0" placeholder="lb" value="${cur}">
       `;
@@ -507,7 +508,7 @@
 
     // --- Toolbar ---
     document.getElementById('exportBtn').addEventListener('click', () => {
-      let csv = 'Exercise,' + WEEKS.map(w => 'W' + w).join(',') + '\n';
+      let csv = 'Exercise,' + WEEKS.map(w => 'R' + w).join(',') + '\n';
       const bwRow = ['Bodyweight'];
       WEEKS.forEach(w => bwRow.push(getVal(w, 'bw')));
       csv += bwRow.join(',') + '\n';
